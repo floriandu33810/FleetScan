@@ -1,7 +1,6 @@
 {
   "images" : [
     {
-      "filename" : "fleetscan_icon_light_zoomed_150.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -13,7 +12,6 @@
           "value" : "dark"
         }
       ],
-      "filename" : "fleetscan_icon_zoomed_150.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"

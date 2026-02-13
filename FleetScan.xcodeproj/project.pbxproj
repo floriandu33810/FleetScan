@@ -6,11 +6,65 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		17A123D12F3F0A8C00AA6575 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 17A123D02F3F0A8C00AA6575 /* WidgetKit.framework */; };
+		17A123D32F3F0A8C00AA6575 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 17A123D22F3F0A8C00AA6575 /* SwiftUI.framework */; };
+		17A123E42F3F0A8D00AA6575 /* WidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 17A123CE2F3F0A8C00AA6575 /* WidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		17A123E22F3F0A8D00AA6575 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 17BE03FD2F3E7DA20068EEE9 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 17A123CD2F3F0A8C00AA6575;
+			remoteInfo = WidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		17A123E52F3F0A8D00AA6575 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				17A123E42F3F0A8D00AA6575 /* WidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		17A123CE2F3F0A8C00AA6575 /* WidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		17A123D02F3F0A8C00AA6575 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		17A123D22F3F0A8C00AA6575 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		17A123EE2F3F141600AA6575 /* WidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WidgetExtension.entitlements; sourceTree = "<group>"; };
 		17BE04052F3E7DA20068EEE9 /* FleetScan.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FleetScan.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		17A123E82F3F0A8D00AA6575 /* Exceptions for "Widget" folder in "WidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				AppIntent.swift,
+				Info.plist,
+				Widget.swift,
+			);
+			target = 17A123CD2F3F0A8C00AA6575 /* WidgetExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		17A123D42F3F0A8C00AA6575 /* Widget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				17A123E82F3F0A8D00AA6575 /* Exceptions for "Widget" folder in "WidgetExtension" target */,
+			);
+			path = Widget;
+			sourceTree = "<group>";
+		};
 		17BE04072F3E7DA20068EEE9 /* FleetScan */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = FleetScan;
@@ -19,6 +73,15 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		17A123CB2F3F0A8C00AA6575 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				17A123D32F3F0A8C00AA6575 /* SwiftUI.framework in Frameworks */,
+				17A123D12F3F0A8C00AA6575 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		17BE04022F3E7DA20068EEE9 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -29,10 +92,22 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		17A123CF2F3F0A8C00AA6575 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				17A123D02F3F0A8C00AA6575 /* WidgetKit.framework */,
+				17A123D22F3F0A8C00AA6575 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		17BE03FC2F3E7DA20068EEE9 = {
 			isa = PBXGroup;
 			children = (
+				17A123EE2F3F141600AA6575 /* WidgetExtension.entitlements */,
 				17BE04072F3E7DA20068EEE9 /* FleetScan */,
+				17A123D42F3F0A8C00AA6575 /* Widget */,
+				17A123CF2F3F0A8C00AA6575 /* Frameworks */,
 				17BE04062F3E7DA20068EEE9 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +116,7 @@
 			isa = PBXGroup;
 			children = (
 				17BE04052F3E7DA20068EEE9 /* FleetScan.app */,
+				17A123CE2F3F0A8C00AA6575 /* WidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,6 +124,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		17A123CD2F3F0A8C00AA6575 /* WidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 17A123E92F3F0A8D00AA6575 /* Build configuration list for PBXNativeTarget "WidgetExtension" */;
+			buildPhases = (
+				17A123CA2F3F0A8C00AA6575 /* Sources */,
+				17A123CB2F3F0A8C00AA6575 /* Frameworks */,
+				17A123CC2F3F0A8C00AA6575 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				17A123D42F3F0A8C00AA6575 /* Widget */,
+			);
+			name = WidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = WidgetExtension;
+			productReference = 17A123CE2F3F0A8C00AA6575 /* WidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		17BE04042F3E7DA20068EEE9 /* FleetScan */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 17BE04152F3E7DA30068EEE9 /* Build configuration list for PBXNativeTarget "FleetScan" */;
@@ -55,10 +153,12 @@
 				17BE04012F3E7DA20068EEE9 /* Sources */,
 				17BE04022F3E7DA20068EEE9 /* Frameworks */,
 				17BE04032F3E7DA20068EEE9 /* Resources */,
+				17A123E52F3F0A8D00AA6575 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				17A123E32F3F0A8D00AA6575 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				17BE04072F3E7DA20068EEE9 /* FleetScan */,
@@ -80,6 +180,9 @@
 				LastSwiftUpdateCheck = 2620;
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
+					17A123CD2F3F0A8C00AA6575 = {
+						CreatedOnToolsVersion = 26.2;
+					};
 					17BE04042F3E7DA20068EEE9 = {
 						CreatedOnToolsVersion = 26.2;
 					};
@@ -100,11 +203,19 @@
 			projectRoot = "";
 			targets = (
 				17BE04042F3E7DA20068EEE9 /* FleetScan */,
+				17A123CD2F3F0A8C00AA6575 /* WidgetExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		17A123CC2F3F0A8C00AA6575 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		17BE04032F3E7DA20068EEE9 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -115,6 +226,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		17A123CA2F3F0A8C00AA6575 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		17BE04012F3E7DA20068EEE9 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -124,7 +242,77 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		17A123E32F3F0A8D00AA6575 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 17A123CD2F3F0A8C00AA6575 /* WidgetExtension */;
+			targetProxy = 17A123E22F3F0A8D00AA6575 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		17A123E62F3F0A8D00AA6575 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = WidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6BUJ2LMQWW;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Widget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Widget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.florian.FleetScan.Widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		17A123E72F3F0A8D00AA6575 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = WidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6BUJ2LMQWW;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Widget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Widget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.florian.FleetScan.Widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		17BE04132F3E7DA30068EEE9 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -251,11 +439,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = FleetScan/FleetScan.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 6BUJ2LMQWW;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Enregistrer les photos des véhicules";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "On a besoin de votre position pour enregistrer les scans.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Permet d’enregistrer la photo dans votre galerie";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -283,11 +475,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = FleetScan/FleetScan.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 6BUJ2LMQWW;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Enregistrer les photos des véhicules";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "On a besoin de votre position pour enregistrer les scans.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Permet d’enregistrer la photo dans votre galerie";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -313,6 +509,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		17A123E92F3F0A8D00AA6575 /* Build configuration list for PBXNativeTarget "WidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				17A123E62F3F0A8D00AA6575 /* Debug */,
+				17A123E72F3F0A8D00AA6575 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		17BE04002F3E7DA20068EEE9 /* Build configuration list for PBXProject "FleetScan" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
