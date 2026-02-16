@@ -10,6 +10,71 @@ struct ContentView: View {
     @Environment(\.managedObjectContext) private var context
     @State private var selectedTab: Int = 1 // ✅ démarre sur "Mes scans"
 
+    // MARK: - Settings (persisted)
+
+    private enum AppTheme: String, CaseIterable, Identifiable {
+        case system
+        case light
+        case dark
+
+        var id: String { rawValue }
+
+        var label: String {
+            switch self {
+            case .system: return "Système"
+            case .light: return "Clair"
+            case .dark: return "Sombre"
+            }
+        }
+
+        var preferredColorScheme: ColorScheme? {
+            switch self {
+            case .system: return nil
+            case .light: return .light
+            case .dark: return .dark
+            }
+        }
+    }
+
+    @AppStorage("app_theme") private var appThemeRaw: String = AppTheme.system.rawValue
+    @AppStorage("enable_mode_classic") private var enableClassic: Bool = true
+    @AppStorage("enable_mode_massive") private var enableMassive: Bool = true
+    @AppStorage("enable_mode_association") private var enableAssociation: Bool = true
+
+    private var appTheme: AppTheme { AppTheme(rawValue: appThemeRaw) ?? .system }
+
+    private func ensureAtLeastOneModeEnabled() {
+        if !enableClassic && !enableMassive && !enableAssociation {
+            enableClassic = true
+        }
+    }
+
+    private func ensureScanModeIsEnabled() {
+        ensureAtLeastOneModeEnabled()
+
+        switch scanMode {
+        case .classic:
+            if !enableClassic { scanMode = enableMassive ? .massive : (enableAssociation ? .association : .classic) }
+        case .massive:
+            if !enableMassive { scanMode = enableClassic ? .classic : (enableAssociation ? .association : .massive) }
+        case .association:
+            if !enableAssociation { scanMode = enableClassic ? .classic : (enableMassive ? .massive : .association) }
+        }
+    }
+
+    private func ensureScansFilterIsEnabled() {
+        ensureAtLeastOneModeEnabled()
+
+        switch scansFilter {
+        case .classic:
+            if !enableClassic { scansFilter = enableMassive ? .massive : (enableAssociation ? .association : .classic) }
+        case .massive:
+            if !enableMassive { scansFilter = enableClassic ? .classic : (enableAssociation ? .association : .massive) }
+        case .association:
+            if !enableAssociation { scansFilter = enableClassic ? .classic : (enableMassive ? .massive : .association) }
+        }
+    }
+
     // Modes
     enum ScanMode: Int { case classic = 0, massive = 1, association = 2 }
     @State private var scanMode: ScanMode = .classic
@@ -17,7 +82,65 @@ struct ContentView: View {
     enum ScansFilter: Int { case classic = 0, massive = 1, association = 2 }
     @State private var scansFilter: ScansFilter = .classic
 
+    // MARK: - Vehicle type (stored per bikeId)
+
+    private enum VehicleType: String, CaseIterable, Identifiable {
+        case bike
+        case scooter
+        case other
+        case iot
+
+        var id: String { rawValue }
+
+        var label: String {
+            switch self {
+            case .bike: return "Vélo"
+            case .scooter: return "Trottinette"
+            case .other: return "Autre"
+            case .iot: return "iOT"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .bike: return "bicycle"
+            case .scooter: return "scooter"
+            case .other: return "mappin.circle.fill"
+            case .iot: return "cpu"
+            }
+        }
+    }
+
+    private func vehicleTypeKey(for bikeId: String) -> String {
+        "vehicle_type_\(bikeId.uppercased())"
+    }
+
+    private func storedVehicleType(for bikeId: String) -> VehicleType? {
+        let key = vehicleTypeKey(for: bikeId)
+        guard let raw = UserDefaults.standard.string(forKey: key) else { return nil }
+        return VehicleType(rawValue: raw)
+    }
+
+    private func setStoredVehicleType(_ type: VehicleType, for bikeId: String) {
+        let key = vehicleTypeKey(for: bikeId)
+        UserDefaults.standard.set(type.rawValue, forKey: key)
+
+        // Trigger UI refresh for icons in "Mes scans" and on the map
+        vehicleTypeRefreshTick &+= 1
+    }
+
+    private func inferVehicleType(from bikeId: String) -> VehicleType {
+        let c = bikeId.uppercased()
+        if c.hasPrefix("S0") { return .scooter }
+        if c.hasPrefix("E0") { return .bike }
+        return .other
+    }
+
+    @State private var showDeleteClassicConfirm = false
     @State private var showDeleteMassiveConfirm = false
+    @State private var showDeleteAssociationConfirm = false
+    // Force UI refresh when vehicle type changes (UserDefaults dynamic keys don't auto-refresh SwiftUI)
+    @State private var vehicleTypeRefreshTick: Int = 0
 
     // Association flow (2-step)
     enum AssociationStep { case scanBike, scanIot }
@@ -62,6 +185,7 @@ struct ContentView: View {
     @State private var scanToEdit: ScanRecord?
     @State private var showRenameSheet = false
     @State private var editText: String = ""
+    @State private var editVehicleType: VehicleType = .other
 
     // Photo (classic only)
     @State private var pendingPhotoScan: ScanRecord?
@@ -71,6 +195,9 @@ struct ContentView: View {
     @State private var photoViewerImage: UIImage?
     @State private var showPhotoViewer = false
     @State private var savePhotoToast = false
+
+    // Map callout (tap on marker)
+    @State private var selectedMapBikeId: String?
 
     // Map
     @State private var mapPosition: MapCameraPosition = .automatic
@@ -82,6 +209,83 @@ struct ContentView: View {
     // Association anti double-scan (sans pause UI)
     @State private var lastAssociationScanAt: Date = .distantPast
     @State private var lastAssociationScannedValue: String = ""
+
+    // MARK: - Custom beep (bundled audio)
+
+    /// Put a short (~1s) WAV in the app bundle named exactly: `metro_beep.wav`
+    /// (Add it to Xcode project, check the main app target).
+    private final class MetroBeepPlayer {
+        static let shared = MetroBeepPlayer()
+
+        private var player: AVAudioPlayer?
+        private let queue = DispatchQueue(label: "MetroBeepPlayer.queue")
+
+        func playOnce() {
+            queue.async {
+                self.playInternal(durationLimit: 1.0)
+            }
+        }
+
+        func play(times: Int, interval: TimeInterval = 0.22) {
+            guard times > 0 else { return }
+            for i in 0..<times {
+                DispatchQueue.main.asyncAfter(deadline: .now() + (Double(i) * interval)) {
+                    self.playOnce()
+                }
+            }
+        }
+
+        private func playInternal(durationLimit: TimeInterval) {
+            // Prepare audio session: plays even in Silent mode (Ring/Silent switch), keeps other audio playing if needed.
+            do {
+                let session = AVAudioSession.sharedInstance()
+                // ✅ Plays even in Silent mode (Ring/Silent switch)
+                // Keeps other audio playing if needed.
+                try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+                try session.setActive(true, options: [])
+            } catch {
+                // If session fails, we still try to play.
+            }
+
+            guard let url = Bundle.main.url(forResource: "metro_beep", withExtension: "wav") else {
+                // Fallback system sound if the file is not in the bundle
+                AudioServicesPlaySystemSound(1108)
+                return
+            }
+
+            do {
+                if player == nil {
+                    player = try AVAudioPlayer(contentsOf: url)
+                    player?.prepareToPlay()
+                } else {
+                    // Reset if already loaded
+                    player?.stop()
+                    player?.currentTime = 0
+                }
+
+                player?.play()
+
+                // Hard-stop after durationLimit (even if file is longer)
+                DispatchQueue.main.asyncAfter(deadline: .now() + durationLimit) {
+                    self.queue.async {
+                        self.player?.stop()
+                        self.player?.currentTime = 0
+                    }
+                }
+            } catch {
+                // Fallback system sound on any decoding error
+                AudioServicesPlaySystemSound(1108)
+            }
+        }
+    }
+
+    private func metroBeep() {
+        MetroBeepPlayer.shared.playOnce()
+    }
+
+    private func metroBeep(times: Int) {
+        MetroBeepPlayer.shared.play(times: times)
+    }
 
     // MARK: - Helpers
 
@@ -98,15 +302,40 @@ struct ContentView: View {
         return trimmed
     }
 
-    // Extract IoT IMEI/id from payload like:
-    // "2010700099-ZK105MGC-864431040539126-8988303..." -> "864431040539126"
+    // Extract IoT id from various payloads:
+    //
+    // Trott (Comodule-like):
+    // "2010700099-ZK105MGC-864431040521538-8988303..." -> "864431040521538"
+    //
+    // Vélo (Velco-like):
+    // "OEM-RS-001_RBEF7B" -> "RBEF7B"
+    //
+    // Fallback: return trimmed raw
     private func extractIotId(from raw: String) -> String {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        let parts = trimmed.split(separator: "-").map(String.init)
-        if parts.count >= 3 {
-            let third = parts[2].trimmingCharacters(in: .whitespacesAndNewlines)
-            if !third.isEmpty { return third }
+        guard !trimmed.isEmpty else { return "" }
+
+        // Case A (vélo): `OEM-RS-001_RBEF7B` -> `RBEF7B`
+        // We prioritize underscore parsing first, because the dash-splitting would otherwise return `001_RBEF7B`.
+        if let lastUnderscore = trimmed.lastIndex(of: "_") {
+            let after = String(trimmed[trimmed.index(after: lastUnderscore)...])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !after.isEmpty {
+                return after
+            }
         }
+
+        // Case B (trott): `2010700099-ZK105MGC-864431040521538-...` -> `864431040521538`
+        // Only take the 3rd `-` chunk if it looks like an IMEI (digits, long enough).
+        let dashParts = trimmed.split(separator: "-").map(String.init)
+        if dashParts.count >= 3 {
+            let third = dashParts[2].trimmingCharacters(in: .whitespacesAndNewlines)
+            let isDigitsOnly = !third.isEmpty && third.unicodeScalars.allSatisfy { CharacterSet.decimalDigits.contains($0) }
+            if isDigitsOnly && third.count >= 10 {
+                return third
+            }
+        }
+
         return trimmed
     }
 
@@ -201,17 +430,13 @@ struct ContentView: View {
 
     // BIP système
     private func beep() {
-        AudioServicesPlaySystemSound(1108)
+        metroBeep()
     }
 
     // Plusieurs bips (ex: 2 bips à la fin d’une association)
-    private func beep(times: Int, interval: TimeInterval = 0.18) {
-        guard times > 0 else { return }
-        for i in 0..<times {
-            DispatchQueue.main.asyncAfter(deadline: .now() + (Double(i) * interval)) {
-                self.beep()
-            }
-        }
+    private func beep(times: Int, interval: TimeInterval = 0.22) {
+        // Use the custom metro beep, spaced a bit more so it's clearly two distinct bips.
+        MetroBeepPlayer.shared.play(times: times, interval: interval)
     }
 
     // Torch / Flashlight (rear camera torch)
@@ -265,9 +490,65 @@ struct ContentView: View {
     // ✅ Icône selon préfixe
     private func vehicleIconName(for codeOrName: String) -> String {
         let c = codeOrName.uppercased()
+
+        // If it's a bikeId we know, prefer the stored vehicle type
+        if let stored = storedVehicleType(for: c) {
+            switch stored {
+            case .bike: return "bicycle"
+            case .scooter: return "scooter"
+            case .other: return "qrcode"
+            case .iot: return "cpu"
+            }
+        }
+
+        // Fallback: infer from prefix
         if c.hasPrefix("S0") { return "scooter" } // iOS 17+
         if c.hasPrefix("E0") { return "bicycle" }
         return "qrcode"
+    }
+
+    // ✅ Icône sur la carte selon le type (S0=trott, E0=vélo, sinon pin)
+    private func mapMarkerIcon(for bikeId: String) -> String {
+        let c = bikeId.uppercased()
+
+        if let stored = storedVehicleType(for: c) {
+            switch stored {
+            case .bike: return "bicycle"
+            case .scooter: return "scooter"
+            case .other: return "mappin.circle.fill"
+            case .iot: return "cpu"
+            }
+        }
+
+        if c.hasPrefix("S0") { return "scooter" }      // iOS 17+
+        if c.hasPrefix("E0") { return "bicycle" }
+        return "mappin.circle.fill"
+    }
+
+    // ✅ Récupère la dernière photo + date (scan classique) pour un bikeId
+    private func latestScanInfo(for bikeId: String) -> (date: Date?, image: UIImage?) {
+        let req: NSFetchRequest<ScanRecord> = ScanRecord.fetchRequest()
+        req.fetchLimit = 1
+        req.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
+        req.predicate = NSPredicate(format: "bikeId == %@ AND isMassive == NO AND photoData != nil", bikeId)
+
+        guard let rec = try? context.fetch(req).first else {
+            return (nil, nil)
+        }
+
+        let img: UIImage?
+        if let data = rec.photoData {
+            img = UIImage(data: data)
+        } else {
+            img = nil
+        }
+
+        return (rec.timestamp, img)
+    }
+
+    // ✅ Récupère seulement la photo (si besoin ailleurs)
+    private func latestPhotoImage(for bikeId: String) -> UIImage? {
+        latestScanInfo(for: bikeId).image
     }
 
     var body: some View {
@@ -283,8 +564,18 @@ struct ContentView: View {
             mapTab
                 .tabItem { Label("Carte", systemImage: "map") }
                 .tag(2)
+
+            settingsTab
+                .tabItem { Label("Paramètres", systemImage: "gearshape") }
+                .tag(3)
         }
-        .onAppear { location.request() }
+        .preferredColorScheme(appTheme.preferredColorScheme)
+        .onAppear {
+            location.request()
+            ensureAtLeastOneModeEnabled()
+            ensureScanModeIsEnabled()
+            ensureScansFilterIsEnabled()
+        }
 
         // Reset session massive quand on passe en massif + reset flow association si on quitte
         .onChange(of: scanMode) { _, newMode in
@@ -306,6 +597,19 @@ struct ContentView: View {
                 isTorchOn = false
                 setTorch(false)
             }
+        }
+
+        .onChange(of: enableClassic) { _, _ in
+            ensureScanModeIsEnabled()
+            ensureScansFilterIsEnabled()
+        }
+        .onChange(of: enableMassive) { _, _ in
+            ensureScanModeIsEnabled()
+            ensureScansFilterIsEnabled()
+        }
+        .onChange(of: enableAssociation) { _, _ in
+            ensureScanModeIsEnabled()
+            ensureScansFilterIsEnabled()
         }
 
         .onChange(of: selectedTab) { _, newTab in
@@ -331,10 +635,26 @@ struct ContentView: View {
             PhotoViewer(image: $photoViewerImage, saveToast: $savePhotoToast)
         }
 
+        // Delete classic confirm
+        .confirmationDialog("Supprimer tous les scans classiques ?", isPresented: $showDeleteClassicConfirm, titleVisibility: .visible) {
+            Button("Tout supprimer (classiques)", role: .destructive) {
+                deleteAllClassicScans()
+            }
+            Button("Annuler", role: .cancel) {}
+        }
+
         // Delete massive confirm
         .confirmationDialog("Supprimer tous les scans massifs ?", isPresented: $showDeleteMassiveConfirm, titleVisibility: .visible) {
             Button("Tout supprimer (massif)", role: .destructive) {
                 deleteAllMassiveScans()
+            }
+            Button("Annuler", role: .cancel) {}
+        }
+
+        // Delete association confirm
+        .confirmationDialog("Supprimer toutes les associations ?", isPresented: $showDeleteAssociationConfirm, titleVisibility: .visible) {
+            Button("Tout supprimer (associations)", role: .destructive) {
+                deleteAllAssociationScans()
             }
             Button("Annuler", role: .cancel) {}
         }
@@ -366,37 +686,38 @@ struct ContentView: View {
 
             QRScannerView(isActive: selectedTab == 0 && !showCamera,
                           cooldownSeconds: cooldown) { raw in
-                let normalized = normalizeScanned(raw)
+                let base = normalizeScanned(raw)
+                let cleaned = extractIotId(from: base)
 
                 switch scanMode {
                 case .classic:
-                    lastScannedCode = normalized
-                    saveClassicScan(code: normalized)
+                    lastScannedCode = cleaned
+                    saveClassicScan(code: cleaned)
 
                 case .massive:
-                    lastScannedCode = normalized
-                    saveMassiveScan(code: normalized)
+                    lastScannedCode = cleaned
+                    saveMassiveScan(code: cleaned)
 
                 case .association:
                     let now = Date()
 
                     // Debounce léger + anti double lecture identique (sans pause UI)
                     if now.timeIntervalSince(lastAssociationScanAt) < 0.25 { return }
-                    if normalized == lastAssociationScannedValue { return }
+                    if base == lastAssociationScannedValue { return }
                     lastAssociationScanAt = now
-                    lastAssociationScannedValue = normalized
+                    lastAssociationScannedValue = base
 
                     if associationStep == .scanBike {
                         // On accepte uniquement un QR véhicule (S0/E0)
-                        let upper = normalized.uppercased()
+                        let upper = base.uppercased()
                         if !(upper.hasPrefix("S0") || upper.hasPrefix("E0")) {
                             lastScannedCode = "Association : scanne le QRcode du véhicule"
                             return
                         }
 
-                        pendingAssociationBikeId = normalized
+                        pendingAssociationBikeId = base
                         associationStep = .scanIot
-                        lastScannedCode = "Véhicule: \(normalized)"
+                        lastScannedCode = "Véhicule: \(base)"
 
                         // ✅ Feedback 1er scan (toaster + 1 bip)
                         toast("✅ Scan OK")
@@ -413,14 +734,14 @@ struct ContentView: View {
                     }
 
                     // Si le scanner relit le QR du véhicule, on ignore et on reste en étape IoT
-                    let upper = normalized.uppercased()
-                    if normalized == bikeId || upper.hasPrefix("S0") || upper.hasPrefix("E0") {
+                    let upper = base.uppercased()
+                    if base == bikeId || upper.hasPrefix("S0") || upper.hasPrefix("E0") {
                         lastScannedCode = "Association : scanne le QRcode de l’iOT"
                         return
                     }
 
-                    // Extraction IoT : on prend le 3e champ si format comodule, sinon valeur complète
-                    let iotId = extractIotId(from: raw)
+                    // Extraction IoT : trott (3e champ '-') ou vélo (après le dernier '_')
+                    let iotId = extractIotId(from: base)
                     let saved = saveAssociation(bikeId: bikeId, iotId: iotId)
 
                     // Reset flow
@@ -429,8 +750,8 @@ struct ContentView: View {
                     lastScannedCode = "\(bikeId) -> \(iotId)"
 
                     if saved {
-                        // ✅ Fin association : 2 bips + toaster + popup
-                        beep(times: 2)
+                        // ✅ Fin association : 1 bip + toaster + popup
+                        beep()
                         toast("✅ Association terminé")
                         showAssociationDonePopup = true
                     }
@@ -454,13 +775,20 @@ struct ContentView: View {
                 // ✅ Mode (gauche) + Flash (droite)
                 HStack(alignment: .center, spacing: 10) {
                     Picker("", selection: $scanMode) {
-                        Text("Classique").tag(ScanMode.classic)
-                        Text("Massif").tag(ScanMode.massive)
-                        Text("Association").tag(ScanMode.association)
+                        if enableClassic {
+                            Text("Classique").tag(ScanMode.classic)
+                        }
+                        if enableMassive {
+                            Text("Massif").tag(ScanMode.massive)
+                        }
+                        if enableAssociation {
+                            Text("Association").tag(ScanMode.association)
+                        }
                     }
                     .pickerStyle(.segmented)
                     .tint(.white)
                     .environment(\.colorScheme, .dark)
+                    .onAppear { ensureScanModeIsEnabled() }
 
                     Spacer()
 
@@ -563,6 +891,9 @@ struct ContentView: View {
 
         do {
             try context.save()
+
+            // ✅ Son + toaster (mode classique)
+            beep()
             toast("✅ Scan OK")
 
             if lat != 0 || lon != 0 {
@@ -577,18 +908,49 @@ struct ContentView: View {
     }
 
     private func reverseGeocodeAndSaveAddress(for scan: ScanRecord, lat: Double, lon: Double) {
-        let geocoder = CLGeocoder()
-        geocoder.reverseGeocodeLocation(CLLocation(latitude: lat, longitude: lon)) { placemarks, error in
-            guard error == nil else { return }
-            guard let p = placemarks?.first else { return }
+        let loc = CLLocation(latitude: lat, longitude: lon)
 
-            let parts: [String?] = [p.name, p.thoroughfare, p.subLocality, p.locality, p.postalCode]
-            let address = parts.compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
-            if !address.isEmpty {
-                scan.address = address
-                try? self.context.save()
+        if #available(iOS 26.0, *) {
+            // iOS 26+: Use MapKit reverse geocoding (CLGeocoder APIs are deprecated/obsoleted).
+            Task {
+                guard let request = MKReverseGeocodingRequest(location: loc) else { return }
+                do {
+                    let items = try await request.mapItems
+                    guard let item = items.first else { return }
+
+                    // Prefer full address when available; fallback to the map item name.
+                    let address = item.address?.fullAddress ?? item.name ?? ""
+                    guard !address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+
+                    await MainActor.run {
+                        scan.address = address
+                        try? self.context.save()
+                    }
+                } catch {
+                    // Ignore reverse geocoding errors.
+                }
+            }
+        } else {
+            // iOS <= 25: legacy CLGeocoder
+            legacyReverseGeocode(loc) { placemarks, error in
+                guard error == nil else { return }
+                guard let p = placemarks?.first else { return }
+
+                let parts: [String?] = [p.name, p.thoroughfare, p.subLocality, p.locality, p.postalCode]
+                let address = parts.compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
+                if !address.isEmpty {
+                    scan.address = address
+                    try? self.context.save()
+                }
             }
         }
+    }
+
+    // Keep CLGeocoder usage isolated so it doesn't trigger iOS 26 deprecation/unavailability warnings
+    @available(iOS, introduced: 13.0, deprecated: 26.0)
+    private func legacyReverseGeocode(_ location: CLLocation,
+                                     completion: @escaping ([CLPlacemark]?, Error?) -> Void) {
+        CLGeocoder().reverseGeocodeLocation(location, completionHandler: completion)
     }
 
     private func toast(_ message: String = "✅ Scan OK") {
@@ -645,22 +1007,21 @@ struct ContentView: View {
             List {
                 Section {
                     Picker("", selection: $scansFilter) {
-                        Text("Scans classiques").tag(ScansFilter.classic)
-                        Text("Scans massifs").tag(ScansFilter.massive)
-                        Text("Associations").tag(ScansFilter.association)
+                        if enableClassic {
+                            Text("Scans classiques").tag(ScansFilter.classic)
+                        }
+                        if enableMassive {
+                            Text("Scans massifs").tag(ScansFilter.massive)
+                        }
+                        if enableAssociation {
+                            Text("Associations").tag(ScansFilter.association)
+                        }
                     }
                     .pickerStyle(.segmented)
                     .tint(.blue)
                     .padding(.vertical, 6)
                     .listRowBackground(Color.black.opacity(0.06))
-
-                    if scansFilter == .massive {
-                        Button(role: .destructive) {
-                            showDeleteMassiveConfirm = true
-                        } label: {
-                            Label("Tout effacer (scans massifs)", systemImage: "trash")
-                        }
-                    }
+                    .onAppear { ensureScansFilterIsEnabled() }
                 }
 
                 if scansFilter == .association {
@@ -682,13 +1043,21 @@ struct ContentView: View {
                             Spacer()
                         }
                         .padding(.vertical, 6)
+                        .contextMenu {
+                            Button {
+                                UIPasteboard.general.string = scanTitle(a)
+                                copiedToast()
+                            } label: {
+                                Label("Copier", systemImage: "doc.on.doc")
+                            }
+                        }
                     }
                     .onDelete(perform: deleteScansAtOffsets)
                 } else {
                     ForEach(filteredScans, id: \.id) { s in
                         VStack(alignment: .leading, spacing: 10) {
                             HStack(spacing: 12) {
-                                Image(systemName: vehicleIconName(for: scanTitle(s)))
+                                Image(systemName: vehicleIconName(for: s.bikeId ?? ""))
                                     .font(.title3)
                                     .frame(width: 28)
 
@@ -722,6 +1091,15 @@ struct ContentView: View {
                                 Button {
                                     scanToEdit = s
                                     editText = scanTitle(s)
+
+                                    if let id = s.bikeId, let stored = storedVehicleType(for: id) {
+                                        editVehicleType = stored
+                                    } else if let id = s.bikeId {
+                                        editVehicleType = inferVehicleType(from: id)
+                                    } else {
+                                        editVehicleType = .other
+                                    }
+
                                     showRenameSheet = true
                                 } label: {
                                     Image(systemName: "pencil")
@@ -748,7 +1126,14 @@ struct ContentView: View {
                                     Button {
                                         openInGoogleMaps(lat: s.latitude, lon: s.longitude)
                                     } label: {
-                                        Label("Ouvrir dans Google Maps", systemImage: "map.fill")
+                                        HStack(spacing: 8) {
+                                            Image(systemName: "map.fill")
+                                                .symbolRenderingMode(.monochrome)
+                                                .foregroundStyle(.white)
+                                                .opacity(1)
+                                            Text("Ouvrir dans Google Maps")
+                                                .foregroundStyle(.white)
+                                        }
                                     }
                                     .buttonStyle(.borderedProminent)
                                     .tint(.blue)
@@ -758,10 +1143,20 @@ struct ContentView: View {
                             }
                         }
                         .padding(.vertical, 6)
+                        .contextMenu {
+                            Button {
+                                let text = (s.bikeId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                                UIPasteboard.general.string = text.isEmpty ? scanTitle(s) : text
+                                copiedToast()
+                            } label: {
+                                Label("Copier", systemImage: "doc.on.doc")
+                            }
+                        }
                     }
                     .onDelete(perform: deleteScansAtOffsets)
                 }
             }
+            .id(vehicleTypeRefreshTick)
             .overlay(alignment: .bottom) {
                 if showCopiedToast {
                     Text("📋 Copié dans le presse-papiers")
@@ -777,14 +1172,28 @@ struct ContentView: View {
             .navigationTitle("Mes scans")
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    if scansFilter == .massive || scansFilter == .association {
-                        Button {
-                            copyFilteredToClipboard()
-                        } label: {
-                            Image(systemName: "doc.on.doc")
+                    // 🗑️ Tout effacer (selon le filtre)
+                    Button {
+                        switch scansFilter {
+                        case .classic:
+                            showDeleteClassicConfirm = true
+                        case .massive:
+                            showDeleteMassiveConfirm = true
+                        case .association:
+                            showDeleteAssociationConfirm = true
                         }
+                    } label: {
+                        Image(systemName: "trash")
                     }
 
+                    // ✅ Copier dans le presse-papiers (dispo pour tous les filtres)
+                    Button {
+                        copyFilteredToClipboard()
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                    }
+
+                    // Export
                     Button {
                         if let url = makeOneColumnExport() {
                             exportItem = ExportItem(url: url)
@@ -803,8 +1212,14 @@ struct ContentView: View {
                 NavigationStack {
                     Form {
                         TextField("Nom du véhicule", text: $editText)
+
+                        Picker("Type", selection: $editVehicleType) {
+                            ForEach(VehicleType.allCases) { t in
+                                Text(t.label).tag(t)
+                            }
+                        }
                     }
-                    .navigationTitle("Renommer")
+                    .navigationTitle("Modifier")
                     .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
                             Button("Annuler") { showRenameSheet = false }
@@ -818,6 +1233,9 @@ struct ContentView: View {
 
                                 let cleaned = editText.trimmingCharacters(in: .whitespacesAndNewlines)
                                 scan.displayName = cleaned.isEmpty ? scan.bikeId : cleaned
+                                if let id = scan.bikeId {
+                                    setStoredVehicleType(editVehicleType, for: id)
+                                }
 
                                 if let id = scan.bikeId, let bike = fetchBike(by: id) {
                                     bike.displayName = scan.displayName
@@ -870,9 +1288,29 @@ struct ContentView: View {
         }
     }
 
+    private func deleteAllClassicScans() {
+        let req: NSFetchRequest<ScanRecord> = ScanRecord.fetchRequest()
+        // Classic = not massive AND not association
+        req.predicate = NSPredicate(format: "isMassive == NO AND (address == NIL OR NOT (address BEGINSWITH %@))", "IOT:")
+        if let results = try? context.fetch(req) {
+            for r in results { context.delete(r) }
+            try? context.save()
+        }
+    }
+
     private func deleteAllMassiveScans() {
         let req: NSFetchRequest<ScanRecord> = ScanRecord.fetchRequest()
         req.predicate = NSPredicate(format: "isMassive == YES")
+        if let results = try? context.fetch(req) {
+            for r in results { context.delete(r) }
+            try? context.save()
+        }
+    }
+
+    private func deleteAllAssociationScans() {
+        let req: NSFetchRequest<ScanRecord> = ScanRecord.fetchRequest()
+        // Associations are stored with address prefixed by "IOT:"
+        req.predicate = NSPredicate(format: "address BEGINSWITH %@", "IOT:")
         if let results = try? context.fetch(req) {
             for r in results { context.delete(r) }
             try? context.save()
@@ -907,13 +1345,84 @@ struct ContentView: View {
                 UserAnnotation()
 
                 ForEach(bikes, id: \.bikeId) { b in
-                    if b.lastLatitude != 0 || b.lastLongitude != 0 {
+                    if let id = b.bikeId,
+                       (b.lastLatitude != 0 || b.lastLongitude != 0) {
                         let title = bikeTitle(b)
-                        Annotation(title,
-                                   coordinate: CLLocationCoordinate2D(latitude: b.lastLatitude, longitude: b.lastLongitude)) {
-                            VStack(spacing: 4) {
-                                Image(systemName: "mappin.circle.fill")
-                                    .font(.title2)
+                        let icon = mapMarkerIcon(for: id)
+
+                        // ✅ Titre vide pour éviter le doublon (MapKit affiche parfois le label automatiquement)
+                        Annotation("", coordinate: CLLocationCoordinate2D(latitude: b.lastLatitude, longitude: b.lastLongitude)) {
+                            VStack(spacing: 6) {
+                                // ✅ Petit menu au-dessus du marker quand on clique
+                                if selectedMapBikeId == id {
+                                    let info = latestScanInfo(for: id)
+
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        HStack {
+                                            Text(title)
+                                                .font(.subheadline)
+                                                .bold()
+                                            Spacer()
+                                            Button {
+                                                withAnimation(.easeOut(duration: 0.15)) {
+                                                    selectedMapBikeId = nil
+                                                }
+                                            } label: {
+                                                Image(systemName: "xmark.circle.fill")
+                                                    .font(.title3)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
+
+                                        if let d = info.date {
+                                            Text(formatDate(d))
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+
+                                        if let img = info.image {
+                                            Image(uiImage: img)
+                                                .resizable()
+                                                .scaledToFill()
+                                                .frame(width: 170, height: 110)
+                                                .clipped()
+                                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                                .contentShape(RoundedRectangle(cornerRadius: 12))
+                                                .id(vehicleTypeRefreshTick)
+                                                .onTapGesture {
+                                                    photoViewerImage = img
+                                                    showPhotoViewer = true
+                                                }
+                                        } else {
+                                            Text("Aucune photo")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    .padding(12)
+                                    .background(.thinMaterial)
+                                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 14)
+                                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                                    )
+                                    .shadow(radius: 10)
+                                    .transition(.move(edge: .top).combined(with: .opacity))
+                                }
+
+                                Button {
+                                    withAnimation(.easeOut(duration: 0.15)) {
+                                        // toggle selection
+                                        selectedMapBikeId = (selectedMapBikeId == id) ? nil : id
+                                    }
+                                } label: {
+                                    Image(systemName: icon)
+                                        .font(.title2)
+                                }
+                                .buttonStyle(.plain)
+
+                                // ✅ Nom affiché UNE seule fois
                                 Text(title)
                                     .font(.caption)
                                     .padding(.horizontal, 6)
@@ -923,6 +1432,11 @@ struct ContentView: View {
                             }
                         }
                     }
+                }
+            }
+            .onTapGesture {
+                withAnimation(.easeOut(duration: 0.15)) {
+                    selectedMapBikeId = nil
                 }
             }
             .navigationTitle("Carte")
@@ -950,6 +1464,43 @@ struct ContentView: View {
     private func bikeTitle(_ b: Bike) -> String {
         if let dn = b.displayName, !dn.isEmpty { return dn }
         return b.bikeId ?? "Véhicule"
+    }
+
+    // MARK: - TAB 4 : Paramètres
+
+    private var settingsTab: some View {
+        NavigationStack {
+            Form {
+                Section("Apparence") {
+                    Picker("Thème", selection: $appThemeRaw) {
+                        ForEach(AppTheme.allCases) { t in
+                            Text(t.label).tag(t.rawValue)
+                        }
+                    }
+                }
+
+                Section("Modes") {
+                    Toggle("Classique", isOn: $enableClassic)
+                    Toggle("Massif", isOn: $enableMassive)
+                    Toggle("Association", isOn: $enableAssociation)
+
+                    Text("Active ou désactive les modes disponibles dans l’onglet Scan et les filtres dans Mes scans.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section {
+                    Text("Créé par Florian Rousseau")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("Paramètres")
+            .onAppear {
+                ensureAtLeastOneModeEnabled()
+                ensureScanModeIsEnabled()
+                ensureScansFilterIsEnabled()
+            }
+        }
     }
 
     // MARK: - Date / Formatting
