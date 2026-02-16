@@ -1,5 +1,4 @@
 # FleetScan
-# FleetScan
 
 FleetScan est une application iOS pensée pour les équipes terrain et les mécaniciens afin de gagner du temps sur l’identification et le suivi des véhicules.
 
