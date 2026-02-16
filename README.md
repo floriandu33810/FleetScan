@@ -4,7 +4,7 @@ FleetScan est une application iOS pensée pour les équipes terrain et les méca
 
 ## Fonctionnalités
 - **Scan QR code** en mode **Classique** (avec localisation + photo optionnelle) et **Massif** (enchaînement rapide).
-- **Association** véhicule ↔︎ iOT en 2 scans (extraction automatique de l’ID iOT depuis une trame type `...-IMEI-...`).
+- **Association** véhicule ↔︎ iOT en 2 scans (extraction automatique de l’ID iOT depuis une trame type `...-ModuleID-...`).
 - **Historique “Mes scans”** avec filtres (Classique / Massif / Associations), renommage, export et copie rapide.
 - **Carte** des derniers emplacements connus des véhicules.
 - **Paramètres** : thème (clair/sombre/système) + activation/désactivation des modes.
